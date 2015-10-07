@@ -1,0 +1,177 @@
+---
+title: "Stat Comp HW#3 Jason Rights"
+output: html_document
+---
+
+*Due Thursday, 08 October, 1:00 PM*
+
+50 points total.
+
+$5^{n=day}$ points taken off for each day late.
+
+This assigment includes turning in the first two assignments. All three should
+include knitr files (named `homework1.rmd`, `homework2.rmd`, `homework3.rmd`)
+along with valid PDF output files. Inside each file, clearly indicate which
+parts of your responses go with which problems (you may use the original homework
+document as a template). Add your name as `author` to the file's metadata section.
+Raw R code/output or word processor files are not acceptable.
+
+Failure to properly name files or include author name may result in 5 points taken off.
+
+### Question 1 ###
+
+**10 points**
+
+1. Use GitHub to turn in the first three homework assignments. Make sure the teacher (couthcommander) and TA (trippcm) are collaborators. (5 points)
+
+1. Commit each assignment individually.  This means your repository should have at least three commits. (5 points)
+
+### Question 2 ###
+
+**15 points**
+
+Write a simulation to calculate the power for the following study
+design.  The study has two variables, treatment group and outcome.
+There are two treatment groups (0, 1) and they should be assigned
+randomly with equal probability.  The outcome should be a random normal
+variable with a mean of 60 and standard deviation of 20.  If a patient
+is in the treatment group, add 5 to the outcome.  5 is the true
+treatment effect.  Create a linear of model for the outcome by the
+treatment group, and extract the p-value (hint: see assigment1).
+Test if the p-value is less than or equal to the alpha level, which
+should be set to 0.05.
+
+```{r}
+set.seed(12345)
+gen.data <- function(N){
+  treatment <- rbinom(N,size=1,prob=.5)
+  outcome <- rnorm(N,60,20)
+  suppressWarnings(dat <- as.data.frame(cbind(treatment,outcome)))
+  for(i in seq(N)){
+     outcome[i] <- ifelse(treatment[i] == 1, outcome[i] + 5, outcome[i])
+  }
+  #suppressWarnings(attach(dat))
+  dat <- cbind()
+  dat.mod <- lm(outcome ~ treatment)
+  p.value <- coef(summary(lm(dat.mod)))
+  return(p.value[2,4])
+}
+gen.data(100)
+```
+
+The p-value for this trial is not less than .05.  
+
+
+Repeat this procedure 1000 times. The power is calculated by finding
+the percentage of times the p-value is less than or equal to the alpha
+level.  Use the `set.seed` command so that the professor can reproduce
+your results.
+
+```{r}
+set.seed(12345)
+invisible(x <- replicate(1000,gen.data(100)))
+length(x[which(x<.05)])/1000
+```
+
+1. Find the power when the sample size is 100 patients. (10 points)
+
+```{r}
+set.seed(12345)
+invisible(x <- replicate(1000,gen.data(100)))
+length(x[which(x<.05)])/1000
+```
+
+1. Find the power when the sample size is 1000 patients. (5 points)
+
+```{r}
+set.seed(12345)
+invisible(x <- replicate(1000,gen.data(1000)))
+length(x[which(x<.05)])/1000
+```
+
+### Question 3 ###
+
+**15 points**
+
+Obtain a copy of the [football-values lecture](https://github.com/couthcommander/football-values).
+Save the `2015/proj_rb15.csv` file in your working directory.  Read
+in the data set and remove the first two columns.
+
+```{r}
+football.rb <- read.csv("https://raw.githubusercontent.com/couthcommander/football-values/a19eb6f5f68629d514131a9fa5fe7c21f78605f3/2015/proj_rb15.csv")
+write.table(football.rb,"football.rb.csv")
+```
+
+1. Show the correlation matrix of this data set. (3 points)
+
+```{r}
+cor(football.rb[,3:8])
+```
+
+1. Generate a data set with 30 rows that has a similar correlation
+structure.  Repeat the procedure 10,000 times and return the mean
+correlation matrix. (10 points)
+
+```{r}
+library(MASS)
+mvrnorm(30, mu=colMeans(football.rb[,3:8]), Sigma = cor(football.rb[,3:8]))
+x <- replicate(10000,mvrnorm(30, mu=colMeans(football.rb[,3:8]), Sigma = cor(football.rb[,3:8])))
+rowMeans(colMeans(x))
+keep.1 <- 0
+loops <- 10000
+for(i in seq(loops)){
+    keep.1 <- keep.1 + cor(x[,,i])/loops
+}
+keep.1
+
+```
+
+1. Generate a data set with 30 rows that has the exact correlation
+structure as the original data set. (2 points)
+
+```{r}
+x <- mvrnorm(30, mu=colMeans(football.rb[,3:8]), Sigma = cor(football.rb[,3:8]),empirical=TRUE)
+cor(x)
+
+```
+
+### Question 4 ###
+
+**10 points**
+
+Use \LaTeX to create the following expressions.
+
+
+1. 
+
+
+
+
+$$P(B) =\sum_{j} P(B|A_j)P(A_j),$$
+     $$\Rightarrow P(A_i|B)= \frac{P(B|A_i)P(A_i)}{\sum_{j}(B|A_j)P(A_j)}$$
+
+
+
+2.  
+
+
+
+
+$$\hat{f}(\zeta) = \int_{-\infty}^\infty f(x)e^{-2\pi i x \zeta}dx$$
+
+
+3.  
+
+ 
+    
+
+$$\mathbf{J} = \frac{\partial \mathbf{f}}{\partial \mathbf{x}} =
+\begin{bmatrix}
+\frac{\partial \mathbf{f} }{\partial x_1} ... \frac{\partial \mathbf{f} }{\partial x_n}
+\end{bmatrix}
+= 
+\begin{bmatrix}
+  \frac{\partial f_1}{\partial x_1} & \cdots & \frac{\partial f_1}{\partial x_n} \\
+  \vdots & \ddots & \vdots \\
+  \frac{\partial f_m}{\partial x_1} & \cdots & \frac{\partial f_m}{\partial x_n} 
+\end{bmatrix}$$
