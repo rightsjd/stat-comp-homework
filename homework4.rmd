@@ -1,0 +1,281 @@
+---
+title: "Stat Comp HW#4"
+author: "Jason Rights"
+date: "October 24, 2015"
+output: pdf_document
+---
+
+Problem 1:  
+
+```{r}
+secant <- function(fun, x0, x1, tol=1e-7, iter=100){
+	for(i in 1:iter) {
+		x2 <- x1-fun(x1)*(x1-x0)/(fun(x1)-fun(x0))
+		if (abs(fun(x2)) < tol)
+			return(x2)
+		x0 <- x1
+		x1 <- x2
+	}
+	stop('method did not converge')
+}
+
+f <- function(x) cos(x) - x
+
+start.time.sec <- proc.time()
+secant(f, x0=1, x1=2)
+total.time.sec <- proc.time() - start.time.sec
+print(total.time.sec)
+
+newton <- function(x, f, fp, tol=1e-7, iter=100){
+  i <- 1
+  while(abs(eval(f)) > tol & i < iter) {
+    x <- x - eval(f)/eval(D(f, 'x'))
+    i <- i + 1
+  }
+  if(i == iter) {
+    stop('method did not converge')
+  }
+  x
+}
+
+start.time.new <- proc.time()
+newton(1, expression(cos(x)-x))
+total.time.new <- proc.time() - start.time.new
+print(total.time.new)
+
+total.time.new - total.time.sec
+```
+
+The secant is typically faster, e.g., by the above amount.     
+
+Problem 2:  
+
+```{r}
+
+craps <- function(ntrials){
+  for(i in seq(ntrials)){
+nloop <- 1
+win <- 0
+repeat{
+  x <- sum(ceiling(6*runif(2)))
+  if (nloop==1 && (x==7 | x == 11)) win <- 1
+  if (nloop==1) roll <- x
+  if (nloop > 1 && x == roll) win <- 1
+  if (x==7 | x == 11 | win==1) break;
+  nloop <- nloop +1
+}
+ if (i==1 && win==0) results <- 'LOSE :('
+ if (i==1 && win==1) results <- 'WIN :D'
+    if (i>1 && win==0) results <- c(results,'LOSE :(')
+    if (i>1 && win==1) results <- c(results,'WIN :D')
+  }
+  return(results)
+}
+
+
+  set.seed(100)
+  craps(3)
+
+for(i in 1:1000){
+set.seed(i)
+y <- craps(10)
+if (identical(y,rep("WIN :D",10))==TRUE) print(i)
+}
+
+set.seed(880)
+craps(10)
+```
+
+
+Problem 3:
+
+
+```{r}
+
+setwd("C:/Users/Jason/Documents")
+# path: directory path to input files
+# file: name of the output file; it should be written to path
+# nTeams: number of teams in league
+# cap: money available to each team
+# posReq: number of starters for each position
+# points: point allocation for each category
+ffvalues <- function(path, file='outfile.csv', nTeams=12, cap=200, posReq=c(qb=1, rb=2, wr=3, te=1, k=1),
+                     points=c(fg=4, xpt=1, pass_yds=1/25, pass_tds=4, pass_ints=-2,
+                              rush_yds=1/10, rush_tds=6, fumbles=-2, rec_yds=1/20, rec_tds=6)) {
+  ## read in CSV files
+k <- read.csv(file.path('proj_k15.csv'), header=TRUE, stringsAsFactors=FALSE)
+qb <- read.csv(file.path('proj_qb15.csv'), header=TRUE, stringsAsFactors=FALSE)
+rb <- read.csv(file.path('proj_rb15.csv'), header=TRUE, stringsAsFactors=FALSE)
+te <- read.csv(file.path('proj_te15.csv'), header=TRUE, stringsAsFactors=FALSE)
+wr <- read.csv(file.path('proj_wr15.csv'), header=TRUE, stringsAsFactors=FALSE)
+# generate unique list of column names
+cols <- unique(c(names(k), names(qb), names(rb), names(te), names(wr)))
+# create a new column in each data.frame
+# values are recylcled
+# concept: ?Extract
+k[,'pos'] <- 'k'
+qb[,'pos'] <- 'qb'
+rb[,'pos'] <- 'rb'
+te[,'pos'] <- 'te'
+wr[,'pos'] <- 'wr'
+
+# append 'pos' to unique column list
+cols <- c(cols, 'pos')
+
+# create common columns in each data.frame
+# initialize values to zero
+k[,setdiff(cols, names(k))] <- 0
+qb[,setdiff(cols, names(qb))] <- 0
+rb[,setdiff(cols, names(rb))] <- 0
+te[,setdiff(cols, names(te))] <- 0
+wr[,setdiff(cols, names(wr))] <- 0
+
+# combine data.frames by row, using consistent column order
+x <- rbind(k[,cols], qb[,cols], rb[,cols], te[,cols], wr[,cols])
+
+# calculate new columns
+# convert NFL stat to fantasy points
+x[,'p_fg'] <- x[,'fg']*points["fg"]
+x[,'p_xpt'] <- x[,'xpt']*points["xpt"]
+x[,'p_pass_yds'] <- x[,'pass_yds']*points["pass_yds"]
+x[,'p_pass_tds'] <- x[,'pass_tds']*points["pass_tds"]
+x[,'p_pass_ints'] <- x[,'pass_ints']*points["pass_ints"]
+x[,'p_rush_yds'] <- x[,'rush_yds']*points["rush_yds"]
+x[,'p_rush_tds'] <- x[,'rush_tds']*points["rush_tds"]
+x[,'p_fumbles'] <- x[,'fumbles']*points["fumbles"]
+x[,'p_rec_yds'] <- x[,'rec_yds']*points["rec_yds"]
+x[,'p_rec_tds'] <- x[,'rec_tds']*points["rec_tds"]
+
+# sum selected column values for every row
+# this is total fantasy points for each player
+x[,'points'] <- rowSums(x[,grep("^p_", names(x))])
+
+
+  ## calculate dollar values
+
+# create new data.frame ordered by points descendingly
+x2 <- x[order(x[,'points'], decreasing=TRUE),]
+
+# determine the row indeces for each position
+k.ix <- which(x2[,'pos']=='k')
+qb.ix <- which(x2[,'pos']=='qb')
+rb.ix <- which(x2[,'pos']=='rb')
+te.ix <- which(x2[,'pos']=='te')
+wr.ix <- which(x2[,'pos']=='wr')
+
+# calculate marginal points by subtracting "baseline" player's points
+x2[k.ix, 'marg'] <- x2[k.ix,'points'] - x2[k.ix[12],'points']
+x2[qb.ix, 'marg'] <- x2[qb.ix,'points'] - x2[qb.ix[12],'points']
+x2[rb.ix, 'marg'] <- x2[rb.ix,'points'] - x2[rb.ix[24],'points']
+x2[te.ix, 'marg'] <- x2[te.ix,'points'] - x2[te.ix[12],'points']
+x2[wr.ix, 'marg'] <- x2[wr.ix,'points'] - x2[wr.ix[36],'points']
+
+# create a new data.frame subset by non-negative marginal points
+x3 <- x2[x2[,'marg'] >= 0,]
+
+# re-order by marginal points
+x3 <- x3[order(x3[,'marg'], decreasing=TRUE),]
+
+# reset the row names
+rownames(x3) <- NULL
+
+# calculation for player value
+x3[,'value'] <- x3[,'marg']*(12*200-nrow(x3))/sum(x3[,'marg']) + 1
+
+# create a data.frame with more interesting columns
+x4 <- x3[,c('PlayerName','pos','points','marg','value')]
+
+
+  ## save dollar values as CSV file
+write.csv(file=file,x4)
+
+  ## return data.frame with dollar values
+return(x4)
+}
+
+
+
+x1 <- ffvalues('.')
+x1[which(x1$value > 20),]
+dim(x1[which(x1$value > 20),])
+```
+
+40 players are worth more than 20 dollars.  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+x1[which(x1$pos=="rb"),][15,]
+```
+
+Melvin Gordon is the 15th most valuable running back.  
+
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+x2 <- ffvalues(getwd(), '16team.csv', nTeams=16, cap=150)
+x2[which(x2$value > 20),]
+dim(x2[which(x2$value > 20),])
+```
+
+40 players are worth more than 20 dollars.  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+temp <- x2[1:40,]
+temp[which(temp$pos=="wr"),]
+dim(temp[which(temp$pos=="wr"),])
+```
+
+14 wide receivers are in the top 40.  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+x3 <- ffvalues('.', 'qbheavy.csv', posReq=c(qb=2, rb=2, wr=3, te=1, k=0),
+        points=c(fg=0, xpt=0, pass_yds=1/25, pass_tds=6, pass_ints=-2,
+                rush_yds=1/10, rush_tds=6, fumbles=-2, rec_yds=1/20, rec_tds=6))
+
+x3[which(x3$value > 20),]
+dim(x3[which(x3$value > 20),])
+```
+
+40 players are worth more than 20 dollars.  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+temp <- x3[1:30,]
+temp[which(temp$pos=="qb"),]
+dim(temp[which(temp$pos=="qb"),])
+
+```
+
+5 quarterbacks are in the top 40.  
+
+
+
+Problem 4:  
+
+```{r}
+objs <- mget(ls("package:base"), inherits = TRUE)
+funs <- Filter(is.function, objs)
+
+n.args <- length(as.list(args(names(funs)[1])))-1
+for(i in 2:length(funs)){
+ n.args <- c(n.args,length(as.list(args(names(funs)[i])))-1)
+}
+n.args <- matrix(n.args)
+colnames(n.args) <- "numb.args"
+n.args <- cbind(c(1:length(n.args)),n.args) 
+funs[n.args[which(n.args[,2]==max(n.args[,2])),][1]]
+```
+
+Scan has the largest number of arguments (22).  
+
+```{r}
+length(n.args[which(n.args[,2] < 1),])
+
+```
+
+146 do not have arguments.  
+
+
+
