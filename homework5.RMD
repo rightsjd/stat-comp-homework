@@ -1,0 +1,268 @@
+---
+title: 'Stat Comp Hw #5'
+author: "Jason Rights"
+date: "November 8, 2015"
+output: pdf_document
+---
+
+Problem 1:  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+haart <- read.csv("haart.csv")
+head(haart)
+haart[,9] <- as.Date(haart[,9],format="%m/%d/%y")
+haart[,10] <- as.Date(haart[,10],format="%m/%d/%y")
+haart[,12] <- as.Date(haart[,12],format="%m/%d/%y")
+
+haart[,13] <- format(haart[,9],"%Y")
+table(haart[,13])
+
+
+haart[,14] <- as.numeric(haart[,12]-haart[,9])
+haart[,15] <- 0
+dim(haart[which(haart[,14]<365),])
+
+
+for(i in seq(nrow(haart))){
+if (is.na(haart[i,14])==FALSE && haart[i,14] < 365) haart[i,15] <- 1
+}
+sum(haart[,15])
+
+```
+
+92 people died within one year.  
+
+```{r}
+
+##part 3
+for(i in seq(nrow(haart))){
+haart[i,16] <- min(as.numeric(haart[i,10] - haart[i,9]), as.numeric(haart[i,12] - haart[i,9]),na.rm=T)
+}
+  
+
+
+haart[,16] <- as.numeric(haart[,16])
+
+head(haart)
+
+for(i in seq(nrow(haart))){
+if (is.na(haart[i,16])==FALSE && haart[i,16] > 365) haart[i,16] <- 365
+}
+
+quantile(haart[,16],na.rm=T)
+
+
+
+##part 4
+for(i in seq(nrow(haart))){
+  haart[i,17] <- 0
+  if (is.na(haart[i,12])==TRUE && haart[i,10]-haart[i,9] < 365) haart[i,17] <- 1 
+}
+sum(haart[,17])
+```
+
+173 records lost to followup.  
+
+```{r}
+
+##part 5
+
+reg_list<-strsplit(as.character(haart[,'init.reg']),',')
+str(haart)
+head(reg_list)
+head(sapply(reg_list,function(x) 'D4T' %in% x))
+all_drugs <- unique(unlist(reg_list))
+reg_drugs <- matrix(nrow=nrow(haart),ncol=length(all_drugs))
+for(i in seq_along(all_drugs)) {
+  # + makes this 1/0 instad of T/F
+    reg_drugs[,i] <- +sapply(reg_list,function(x) all_drugs[i] %in% x)
+}
+colnames(reg_drugs) <- all_drugs
+haart <- cbind(haart, reg_drugs)
+
+reg_drugs <- as.data.frame(reg_drugs)
+sapply(reg_drugs, sum)
+```
+
+3TC, AZT, EFV, NVP, and D4T all occur over 100 times.  
+
+```{r}
+
+setwd("C:/Users/Jason/Documents")
+haart <- read.csv("haart.csv")
+
+haart2 <- read.csv("haart2.csv")
+haart <- rbind(haart, haart2)
+haart[,9] <- as.Date(haart[,9],format="%m/%d/%y")
+haart[,10] <- as.Date(haart[,10],format="%m/%d/%y")
+haart[,12] <- as.Date(haart[,12],format="%m/%d/%y")
+haart[,13] <- format(haart[,9],"%Y")
+table(haart[,13])
+haart[,14] <- as.numeric(haart[,12]-haart[,9])
+haart[,15] <- 0
+dim(haart[which(haart[,14]<365),])
+for(i in seq(nrow(haart))){
+if (is.na(haart[i,14])==FALSE && haart[i,14] < 365) haart[i,15] <- 1
+}
+
+
+for(i in seq(nrow(haart))){
+haart[i,16] <- min(as.numeric(haart[i,10] - haart[i,9]), as.numeric(haart[i,12] - haart[i,9]),na.rm=T)
+}
+  
+haart[,16] <- as.numeric(haart[,16])
+
+for(i in seq(nrow(haart))){
+if (is.na(haart[i,16])==FALSE && haart[i,16] > 365) haart[i,16] <- 365
+}
+
+
+
+
+##part 4
+for(i in seq(nrow(haart))){
+  haart[i,17] <- 0
+  if (is.na(haart[i,12])==TRUE && haart[i,10]-haart[i,9] < 365) haart[i,17] <- 1 
+}
+
+
+##part 5
+
+reg_list<-strsplit(as.character(haart[,'init.reg']),',')
+str(haart)
+head(reg_list)
+head(sapply(reg_list,function(x) 'D4T' %in% x))
+all_drugs <- unique(unlist(reg_list))
+reg_drugs <- matrix(nrow=nrow(haart),ncol=length(all_drugs))
+for(i in seq_along(all_drugs)) {
+  # + makes this 1/0 instad of T/F
+    reg_drugs[,i] <- +sapply(reg_list,function(x) all_drugs[i] %in% x)
+}
+colnames(reg_drugs) <- all_drugs
+haart <- cbind(haart, reg_drugs)
+haart[1:5,]
+haart[(nrow(haart)-4):nrow(haart),]
+
+```
+
+
+Problem 2:  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+haart <- read.csv("haart.csv")
+# Logistic function
+logistic <- function(x) 1 / (1 + exp(-x))
+
+haart.complete <- haart[c(4,6:7,11)]
+haart.complete <- na.omit(haart.complete)
+  
+x <- haart.complete[c(1,2:3)]
+y <- haart.complete[4]
+
+dim(y)
+
+
+estimate_logistic <- function(x, y, MAX_ITER=10) {
+
+    n <- dim(x)[1]
+    k <- dim(x)[2]
+
+    x <- as.matrix(cbind(rep(1, n), x))
+    y <- as.matrix(y)
+
+    # Initialize fitting parameters
+    theta <- rep(0, k+1)
+
+    J <- rep(0, MAX_ITER)
+
+    for (i in 1:MAX_ITER) {
+
+        # Calculate linear predictor
+        z <- x %*% theta
+        # Apply logit function
+        h <- logistic(z)
+
+        # Calculate gradient
+        grad <- t((1/n)*x) %*% as.matrix(h - y)
+        # Calculate Hessian
+        H <- t((1/n)*x) %*% diag(array(h)) %*% diag(array(1-h)) %*% x
+
+        # Calculate log likelihood
+        J[i] <- (1/n) %*% sum(-y * log(h) - (1-y) * log(1-h))
+
+        # Newton's method
+        theta <- theta - solve(H) %*% grad
+    }
+
+    return(theta)
+}
+
+estimate_logistic(x, y)
+
+
+```
+
+Problem 3:  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+addr <- read.delim("addr.txt",sep="\n",header=FALSE,stringsAsFactors=FALSE)
+head(addr)
+
+clean <- c(0,0,0,0,0,0)
+for(i in 1:nrow(addr)){
+  split <- unlist(strsplit(addr[i,],split="  "))
+  rem <- split[nchar(split)>0]
+  clean <- rbind(clean,rem)
+}
+clean <- clean[2:43,]
+remstreet <- clean[,3]
+
+street <- data.frame(character(0),character(0))
+for(i in 1:nrow(addr)){
+  split <- unlist(strsplit(remstreet[i],split="  "))
+ rem <- split[nchar(split)>0]
+ streetnum <- rem[1]
+ streetnam <- rem[2:length(rem)]
+ streetnam <- paste(streetnam,collapse = " ")
+ street_ <- cbind(streetnum,streetnam)
+street <- rbind(street,street_)
+}
+address <- cbind(clean[,1:2],street,clean[,4:6])
+colnames(address) <- c("lastname","firstname", "streetno", "streetname", "city", "state", "zip")
+rownames(address) <- NULL
+address 
+
+
+
+```
+
+
+Problem 4:  
+
+```{r}
+url <- "https://github.com/fonnesbeck/Bios6301/raw/master/datasets/haart.csv"
+haart_df <- read.csv(url)[,c('death','weight','hemoglobin','cd4baseline')]
+coef(summary(glm(death ~ ., data=haart_df, family=binomial(logit))))
+
+myfun <- function(dat, response) {
+  form <- as.formula(response ~ .)
+  coef(summary(glm(form, data=dat, family=binomial(logit))))
+}
+myfun(haart_df, haart_df$death)
+
+```
+
+The problem is that death is being treated as a predictor, when it is supposed to be the outcome.  
+
+```{r}
+myfun_fix <- function(dat, response) {
+response<- deparse(substitute(response))
+form <- as.formula(paste(response, "~."))
+coef(summary(glm(form, data=dat, family=binomial(logit))))
+}
+myfun_fix(haart_df, death)
+
+```
