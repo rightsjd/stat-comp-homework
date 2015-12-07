@@ -1,0 +1,230 @@
+---
+title: "Stat Comp HW 6"
+author: "Jason Rights"
+date: "November 23, 2015"
+output: pdf_document
+---
+
+Problem 1:  
+
+```{r}
+pop <- data.frame(m = rnorm(100,160,20), f = rnorm(100, 160, 20))
+
+next_gen <- function(pop) {
+    pop$m <- sample(pop$m)
+    pop$m <- rowMeans(pop)
+    pop$f <- pop$m
+    pop
+}
+
+hist(pop$m,main='Male Heights Gen 1',xlab='Height',xlim=c(100,220))
+next.pop <- as.data.frame(matrix(NA,100,16))
+colnames(next.pop) <- rep(c("m","f"),8)
+for(i in c(0:7)){
+  if (i==0) next.pop[,c(2*i+1):c(2*i+2)] <- next_gen(pop)
+  if (i>0) next.pop[,c(2*i+1):c(2*i+2)] <- next_gen(next.pop[,c(2*i-1):c(2*i)])
+  hist(next.pop[,c(2*i+1)],main=paste('Male Heights Gen ',i+2),xlab='Height',xlim=c(80,240))
+}
+
+```
+
+I kept the axes the same across all histograms to highlight the effect.  
+
+Problem 2:  
+
+```{r}
+library(ggplot2)
+total.pop <- cbind(pop,next.pop)
+head(total.pop)
+dim(total.pop)
+
+
+total.pop.male <- data.frame(stack(total.pop[,c(1,3,5,7,9,11,13,15,17)]))
+
+total.pop.female <- data.frame(stack(total.pop[,c(2,4,6,8,10,12,14,16,18)]))
+
+total.pop.long <- cbind(total.pop.male[,1],total.pop.female[,1])
+total.pop.long <- cbind(total.pop.long,c(rep(1,100),rep(2,100),rep(3,100),rep(4,100),                                      rep(5,100),rep(6,100),rep(7,100),rep(8,100),rep(9,100)))
+colnames(total.pop.long) <- c("Male","Female","Gen")
+head(total.pop.long)
+
+qplot(m,f,data=next.pop)
+qplot(Male,Female,data=as.data.frame(total.pop.long),facets=~ Gen)
+
+```
+
+Problem 3:  
+
+```{r}
+library(boot)
+
+boot.ci.con <- matrix(NA,10,2)
+boot.ci.treat <- matrix(NA,10,2)
+for(i in seq(10)){
+  N <- 250*i
+  treatment <- rbinom(N,size=1,prob=.5)
+  outcome <- rnorm(N,60,20)
+  dat <- as.data.frame(cbind(treatment,outcome))
+  for(j in seq(N)){
+     dat[j,2] <- ifelse(dat[j,1] == 1, dat[j,2] + 5, dat[j,2])
+  }
+  dat.con <- subset(dat, treatment==0)
+dat.treat <- subset(dat, treatment==1)
+
+  outcome.con_boot <- boot(dat.con$outcome, function(x,i) mean(x[i]), R=2000)
+  outcome.treat_boot <- boot(dat.treat$outcome, function(x,i) mean(x[i]), R=2000)
+  
+  boot.ci.con[i,] <- boot.ci(outcome.con_boot)$normal[2:3]
+  boot.ci.treat[i,] <- boot.ci(outcome.treat_boot)$normal[2:3]
+}
+
+boot.ci.con <- cbind(boot.ci.con,NA)
+boot.ci.treat <- cbind(boot.ci.treat,NA)
+for(i in seq(10)){
+  boot.ci.con[i,3] <- mean(c(boot.ci.con[i,1],boot.ci.con[i,2]))
+  boot.ci.treat[i,3] <- mean(c(boot.ci.treat[i,1],boot.ci.treat[i,2]))
+}
+
+
+plot(boot.ci.con[,1],ylim=c(55,75),col="white",ylab="Outcome",xlab="Bootstrap sample")
+lines(boot.ci.con[,1],ylim=c(55,80))
+lines(boot.ci.con[,2])
+lines(boot.ci.con[,3])
+lines(boot.ci.treat[,1],ylim=c(55,80))
+lines(boot.ci.treat[,2])
+lines(boot.ci.treat[,3])
+#legend(100,50,legend=line,lty=c(1,1))
+
+makeTransparent = function(..., alpha=0.5) {
+  if(alpha<0 | alpha>1) stop("alpha must be between 0 and 1")
+  alpha = floor(255*alpha)  
+  newColor = col2rgb(col=unlist(list(...)), alpha=FALSE)
+  .makeTransparent = function(col, alpha) {
+    rgb(red=col[1], green=col[2], blue=col[3], alpha=alpha, maxColorValue=255)
+  }
+  newColor = apply(newColor, 2, .makeTransparent, alpha=alpha)
+  return(newColor)
+}
+
+polygon(c(1:10,10:1),
+        c(boot.ci.treat[1:10,2],boot.ci.treat[10:1,1]), col=makeTransparent('red',alpha=0.5), border = NA)
+polygon(c(1:10,10:1),
+        c(boot.ci.con[1:10,2],boot.ci.con[10:1,1]), col=makeTransparent('blue',alpha=0.5), border = NA)
+
+
+legend("topright", legend = c("Treatment","Control"), col=c("red","blue"), lty=c(1:1),lwd=c(3,3),seg.len=4)
+
+
+
+```
+
+Problem 4:  
+
+```{r}
+makePatient <- function() {
+  vowel <- grep("[aeiou]", letters)
+  cons <- grep("[^aeiou]", letters)
+  name <- paste(sample(LETTERS[cons], 1), sample(letters[vowel], 1), sample(letters[cons], 1), sep='')
+  gender <- factor(sample(0:1, 1), levels=0:1, labels=c('female','male'))
+  dob <- as.Date(sample(7500, 1), origin="1970-01-01")
+  n <- sample(6, 1)
+  doa <- as.Date(sample(1500, n), origin="2010-01-01")
+  pulse <- round(rnorm(n, 80, 10))
+  temp <- round(rnorm(n, 98.4, 0.3), 2)
+  fluid <- round(runif(n), 2)
+  x <- list(name, gender, dob, doa, pulse, temp, fluid)
+  names(x) <- list("name", "gender", "date_of_birth", "date_of_admission", "pulse", "temperature", "fluid_intake")
+  class(x) <- "medicalRecord"
+  x
+}
+set.seed(8)
+med.record <- makePatient()
+med.record
+class(med.record)
+
+mean.medicalRecord <- function(med){
+  x <- list(mean(med$pulse),mean(med$temperature),mean(med$fluid_intake))
+  names(x) <- c("mean_pulse","mean_temperature","mean_fluid_intake")
+  return(x)
+}
+
+mean(med.record)
+
+print.medicalRecord <- function(med){
+  x <- data.frame(med$date_of_admission,med$pulse,med$temperature,med$fluid_intake)
+  x <- x[order(med$date_of_admission),]
+  colnames(x) <- c("Date of admission","Pulse","Temperature","Fluid intake")
+  rownames(x) <- NULL
+  plot(x[,1],x[,2],xlab="Date",ylab="Pulse")
+  plot(x[,1],x[,3],xlab="Date",ylab="Temperature")
+  plot(x[,1],x[,4],xlab="Date",ylab="Fluid intake")
+  return(x)
+}
+
+print(med.record)
+
+
+##part 3
+
+makePatientCohort <- function(n.patients) {
+  cohort <- makePatient()
+  for(i in c(2:n.patients)){
+    cohort <- c(cohort,makePatient())
+  }
+  class(cohort) <- c("cohort")
+   return(cohort)
+}
+
+
+x <-makePatientCohort(10)
+class(x)
+
+mean.cohort <- function(cohort){
+  for(i in seq(length(cohort)/7)){
+  x <- list(mean(cohort[c(7*(i-1)+1):c(7*i)]$pulse),mean(cohort[c(7*(i-1)+1):c(7*i)]$temperature),mean(cohort[c(7*(i-1)+1):c(7*i)]$fluid_intake))
+  names(x) <- c(paste("mean_pulse_patient_",i),paste("mean_temperature_patient_",i),paste("mean_fluid_intake_patient_",i))
+ print(x)
+   }
+ 
+}
+
+
+print.cohort <- function(cohort){
+  for(i in seq(length(cohort)/7)){
+  x <- data.frame(cohort[c(7*(i-1)+1):c(7*i)]$date_of_admission,cohort[c(7*(i-1)+1):c(7*i)]$pulse,cohort[c(7*(i-1)+1):c(7*i)]$temperature,cohort[c(7*(i-1)+1):c(7*i)]$fluid_intake)
+  x <- x[order(cohort[c(7*(i-1)+1):c(7*i)]$date_of_admission),]
+  colnames(x) <- c(paste("Date of admission, patient",i),"Pulse","Temperature","Fluid intake")
+  rownames(x) <- NULL
+  plot(x[,1],x[,2],xlab="Date",ylab="Pulse",main=paste("Patient",i))
+  plot(x[,1],x[,3],xlab="Date",ylab="Temperature",main=paste("Patient",i))
+  plot(x[,1],x[,4],xlab="Date",ylab="Fluid intake",main=paste("Patient",i))
+  print(x)
+  }
+}
+
+mean(x)
+print(x)
+
+```
+
+### Notes/Grade
+```{r}
+
+## For number 4, if you wanted to connect the points you can use type="l" and the lines() function 
+## inside your print.medicalRecord() function
+print.medicalRecord <- function(med){
+  x <- data.frame(med$date_of_admission,med$pulse,med$temperature,med$fluid_intake)
+  x <- x[order(med$date_of_admission),]
+  colnames(x) <- c("Date of admission","Pulse","Temperature","Fluid intake")
+  rownames(x) <- NULL
+  plot(x[,1],x[,2],xlab="Date",ylab="Pulse",type="l")
+  lines(x[,1],x[,3],xlab="Date",ylab="Temperature")
+  lines(x[,1],x[,4],xlab="Date",ylab="Fluid intake")
+  return(x)
+}
+
+
+```
+
+
+50/50 points
