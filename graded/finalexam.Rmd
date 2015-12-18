@@ -1,0 +1,573 @@
+---
+title: "Stat Comp exam"
+author: "Jason Rights"
+date: "November 28, 2015"
+output: pdf_document
+---
+
+Problem 1:  
+
+```{r}
+setwd("C:/Users/Jason/Documents")
+
+## read in CSV files
+k <- read.csv(file.path('proj_k15.csv'), header=TRUE, stringsAsFactors=FALSE)
+qb <- read.csv(file.path('proj_qb15.csv'), header=TRUE, stringsAsFactors=FALSE)
+rb <- read.csv(file.path('proj_rb15.csv'), header=TRUE, stringsAsFactors=FALSE)
+te <- read.csv(file.path('proj_te15.csv'), header=TRUE, stringsAsFactors=FALSE)
+wr <- read.csv(file.path('proj_wr15.csv'), header=TRUE, stringsAsFactors=FALSE)
+current <- read.csv(file.path('nfl_current15.csv'), header=TRUE, stringsAsFactors=FALSE)
+
+# generate unique list of column names
+cols <- unique(c(names(k), names(qb), names(rb), names(te), names(wr)))
+
+
+# create a new column in each data.frame
+# values are recylcled
+# concept: ?Extract
+k[,'pos'] <- 'k'
+qb[,'pos'] <- 'qb'
+rb[,'pos'] <- 'rb'
+te[,'pos'] <- 'te'
+wr[,'pos'] <- 'wr'
+
+
+
+# append 'pos' to unique column list
+cols <- c(cols, 'pos')
+
+
+# create common columns in each data.frame
+# initialize values to zero
+k[,setdiff(cols, names(k))] <- 0
+qb[,setdiff(cols, names(qb))] <- 0
+rb[,setdiff(cols, names(rb))] <- 0
+te[,setdiff(cols, names(te))] <- 0
+wr[,setdiff(cols, names(wr))] <- 0
+
+# combine data.frames by row, using consistent column order
+x <- rbind(k[,cols], qb[,cols], rb[,cols], te[,cols], wr[,cols])
+
+head(x)
+for(i in seq(nrow(x))){
+  if (x[i,"Team"]=="CLE" 
+      | x[i,"Team"]== "NO" 
+      | x[i,"Team"]== "NYG" 
+      | x[i,"Team"]== "PIT") x[i,3:18] <- x[i,3:18]*(10/16)
+   if (x[i,"Team"]!="CLE" 
+      & x[i,"Team"] != "NO" 
+      & x[i,"Team"] != "NYG" 
+      & x[i,"Team"] != "PIT") x[i,3:18] <- x[i,3:18]*(9/16)
+}
+
+
+
+x <- x[order(-x[,"fpts"]),]
+
+xkickers <- x[which(x[,"pos"]=="k"),]
+topkickers <- xkickers[1:20,]
+
+xqbs <- x[which(x[,"pos"]=="qb"),]
+topqbs <- xqbs[1:20,]
+
+xrbs <- x[which(x[,"pos"]=="rb"),]
+toprbs <- xrbs[1:40,]
+
+xwrs <- x[which(x[,"pos"]=="wr"),]
+topwrs <- xwrs[1:60,]
+
+xtes <- x[which(x[,"pos"]=="te"),]
+toptes <- xtes[1:20,]
+
+top_players <- rbind(topkickers,topqbs,toprbs,topwrs,toptes)
+top_players <- top_players[order(-x[,"fpts"]),]
+
+
+
+
+
+names(current)[1] <- "PlayerName"
+
+fantasyfb <- merge(top_players,current,"PlayerName")
+
+head(fantasyfb)
+
+
+
+
+projected_col=c('fg','fga','xpt','pass_att','pass_cmp','pass_yds','pass_tds','pass_ints',
+                           'rush_att','rush_yds','rush_tds','rec_att','rec_yds','rec_tds','fumbles')
+
+observed_col=c("FGM","FGA","XPM","Att.pass","Cmp.pass","Yds.pass","TD.pass","Int.pass",
+                              "Att.rush","Yds.rush","TD.rush","Rec.catch","Yds.catch","TD.catch","Fmb")
+
+fantasyresiduals <- cbind(fantasyfb[,c(1:2,19)],fantasyfb[,projected_col]-fantasyfb[,observed_col])
+
+fantasyresiduals_k <- fantasyresiduals[which(fantasyresiduals[,"pos"]=="k"),]
+fantasyresiduals_qb <- fantasyresiduals[which(fantasyresiduals[,"pos"]=="qb"),]
+fantasyresiduals_rb <- fantasyresiduals[which(fantasyresiduals[,"pos"]=="rb"),]
+fantasyresiduals_wr <- fantasyresiduals[which(fantasyresiduals[,"pos"]=="wr"),]
+fantasyresiduals_te <- fantasyresiduals[which(fantasyresiduals[,"pos"]=="te"),]
+
+fantasyresidual_allpositions <- list(fantasyresiduals_k,fantasyresiduals_qb,fantasyresiduals_rb,fantasyresiduals_wr,fantasyresiduals_te)
+names(fantasyresidual_allpositions) <- c("k","qb","rb","wr","te")
+
+```
+
+Problem 2:  
+
+```{r}
+
+
+league <- function(stats,nTeams,cap,posReq,points){
+  x <- list(stats,nTeams,cap,posReq,points)
+  names(x) <- c("stats","nTeams","cap","posReq","points")
+  class(x) <- "league"
+  return(x)
+}
+
+##test
+
+pos <- list(qb=1, rb=2, wr=3, te=1, k=1)
+pnts <- list(fg=4, xpt=1, pass_yds=1/25, pass_tds=4, pass_ints=-2,
+             rush_yds=1/10, rush_tds=6, fumbles=-2, rec_yds=1/20, rec_tds=6)
+l <- league(stats=x, nTeams=10, cap=200, posReq=pos, points=pnts)
+head(l)
+
+
+##function to calculate points
+
+calcPoints <- function(league) {
+  
+# convert NFL stat to fantasy points
+league$stats[,'p_fg'] <- league$stats[,'fg']*as.numeric(league$points["fg"])
+league$stats[,'p_xpt'] <- league$stats[,'xpt']*as.numeric(league$points["xpt"])
+league$stats[,'p_pass_yds'] <- league$stats[,'pass_yds']*as.numeric(league$points["pass_yds"])
+league$stats[,'p_pass_tds'] <- league$stats[,'pass_tds']*as.numeric(league$points["pass_tds"])
+league$stats[,'p_pass_ints'] <- league$stats[,'pass_ints']*as.numeric(league$points["pass_ints"])
+league$stats[,'p_rush_yds'] <- league$stats[,'rush_yds']*as.numeric(league$points["rush_yds"])
+league$stats[,'p_rush_tds'] <- league$stats[,'rush_tds']*as.numeric(league$points["rush_tds"])
+league$stats[,'p_fumbles'] <- league$stats[,'fumbles']*as.numeric(league$points["fumbles"])
+league$stats[,'p_rec_yds'] <- league$stats[,'rec_yds']*as.numeric(league$points["rec_yds"])
+league$stats[,'p_rec_tds'] <- league$stats[,'rec_tds']*as.numeric(league$points["rec_tds"])
+
+# sum selected column values for every row
+# this is total fantasy points for each player
+league$stats[,'points'] <- rowSums(league$stats[,grep("^p_", names(league$stats))])
+
+return(league$stats)
+}
+
+##test
+
+head(calcPoints(l))
+
+
+
+##build values function
+
+buildValues <- function(league){
+  
+# convert NFL stat to fantasy points
+league$stats[,'p_fg'] <- league$stats[,'fg']*as.numeric(league$points["fg"])
+league$stats[,'p_xpt'] <- league$stats[,'xpt']*as.numeric(league$points["xpt"])
+league$stats[,'p_pass_yds'] <- league$stats[,'pass_yds']*as.numeric(league$points["pass_yds"])
+league$stats[,'p_pass_tds'] <- league$stats[,'pass_tds']*as.numeric(league$points["pass_tds"])
+league$stats[,'p_pass_ints'] <- league$stats[,'pass_ints']*as.numeric(league$points["pass_ints"])
+league$stats[,'p_rush_yds'] <- league$stats[,'rush_yds']*as.numeric(league$points["rush_yds"])
+league$stats[,'p_rush_tds'] <- league$stats[,'rush_tds']*as.numeric(league$points["rush_tds"])
+league$stats[,'p_fumbles'] <- league$stats[,'fumbles']*as.numeric(league$points["fumbles"])
+league$stats[,'p_rec_yds'] <- league$stats[,'rec_yds']*as.numeric(league$points["rec_yds"])
+league$stats[,'p_rec_tds'] <- league$stats[,'rec_tds']*as.numeric(league$points["rec_tds"])
+
+# sum selected column values for every row
+# this is total fantasy points for each player
+league$stats[,'points'] <- rowSums(league$stats[,grep("^p_", names(league$stats))])
+
+
+## calculate dollar values
+# create new data.frame ordered by points descendingly
+stats2 <- league$stats[order(league$stats[,'points'], decreasing=TRUE),]
+
+# determine the row indeces for each position
+k.ix <- which(stats2[,'pos']=='k')
+qb.ix <- which(stats2[,'pos']=='qb')
+rb.ix <- which(stats2[,'pos']=='rb')
+te.ix <- which(stats2[,'pos']=='te')
+wr.ix <- which(stats2[,'pos']=='wr')
+
+# calculate marginal points by subtracting "baseline" player's points
+stats2[k.ix, 'marg'] <- stats2[k.ix,'points'] - stats2[k.ix[12],'points']
+stats2[qb.ix, 'marg'] <- stats2[qb.ix,'points'] - stats2[qb.ix[12],'points']
+stats2[rb.ix, 'marg'] <- stats2[rb.ix,'points'] - stats2[rb.ix[24],'points']
+stats2[te.ix, 'marg'] <- stats2[te.ix,'points'] - stats2[te.ix[12],'points']
+stats2[wr.ix, 'marg'] <- stats2[wr.ix,'points'] - stats2[wr.ix[36],'points']
+
+# create a new data.frame subset by non-negative marginal points
+stats3 <- stats2[stats2[,'marg'] >= 0,]
+
+# re-order by marginal points
+stats3 <- stats3[order(stats3[,'marg'], decreasing=TRUE),]
+
+# reset the row names
+rownames(stats3) <- NULL
+
+# calculation for player value
+stats3[,'value'] <- stats3[,'marg']*(12*200-nrow(stats3))/sum(stats3[,'marg']) + 1
+
+# create a data.frame with more interesting columns
+stats4 <- stats3[,c('PlayerName','pos','points','marg','value')]
+
+# add all players with a value of 0 dollars
+stats_reallytheyarenotthatbadjustnotfantasyworthy <- stats2[stats2[,'marg'] < 0,] 
+stats_reallytheyarenotthatbadjustnotfantasyworthy[,'value'] <- 0 
+stats_reallytheyarenotthatbadjustnotfantasyworthy <- 
+  stats_reallytheyarenotthatbadjustnotfantasyworthy[,c('PlayerName','pos','points','marg','value')]
+stats5 <- rbind(stats4,stats_reallytheyarenotthatbadjustnotfantasyworthy)
+
+
+  ## return data.frame with dollar values
+return(stats5)
+}
+
+
+##test
+
+buildValues(l)
+
+dim(buildValues(l))
+
+
+##print function
+
+print.league <- function(league){
+  x <- as.data.frame(cbind(buildValues(league)$PlayerName,buildValues(league)$value))
+  names(x) <- c("PlayerName","DollarValue")
+    x <- x[which(x["DollarValue"] != 0),]
+  x 
+}
+
+
+##plot function
+
+plot.league <- function(league){
+  x <- as.data.frame(cbind(buildValues(league)$PlayerName,buildValues(league)$value))
+  names(x) <- c("PlayerName","DollarValue")
+    x <- x[which(x["DollarValue"] != 0),]
+  x <- x[order(x["DollarValue"],decreasing=TRUE),]
+  plot(c(1:nrow(x)),x[,"DollarValue"],xlab="Player Rank",ylab="Dollar Value",main="Fantasy Football Dollar Values")
+}
+
+plot(l)
+
+## box plot
+
+boxplot.league <- function(league){
+ 
+    boxplot(buildValues(league)$value[which(buildValues(league)$value>0)]~buildValues(league)$pos[which(buildValues(league)$value>0)],xlab="Position",ylab="Dollar Value",main="Fantasy Football Dollar Values")
+}
+
+boxplot(l)
+
+##histogram 
+
+hist.league <- function(league){
+ hist(buildValues(league)$value[which(buildValues(league)$value>0)],xlab="Dollar Value",ylab="Frequency",main="Fantasy Football Dollar Values")
+}
+hist(l)
+
+```
+
+Problem 3:  
+
+```{r}
+
+
+##add noise function
+
+addNoise <- function(league,residuals,nsim,seed=NA){
+  projected_cols <- c('fg','fga','xpt','pass_att','pass_cmp','pass_yds','pass_tds','pass_ints',
+                           'rush_att','rush_yds','rush_tds','rec_att','rec_yds','rec_tds','fumbles')
+  
+
+  newstats_qb <- league$stats[which(league$stats["pos"]=="qb"),]
+  newstats_k <- league$stats[which(league$stats["pos"]=="k"),]
+  newstats_wr <- league$stats[which(league$stats["pos"]=="wr"),]
+  newstats_te <- league$stats[which(league$stats["pos"]=="te"),]
+  newstats_rb <- league$stats[which(league$stats["pos"]=="rb"),]
+  
+
+  
+    sims_qb <- cbind(league$stats[which(league$stats["pos"]=="qb"),1],matrix(NA,length(league$stats[which(league$stats["pos"]=="qb"),1]),nsim))
+    
+   sims_k <- cbind(league$stats[which(league$stats["pos"]=="k"),1],matrix(NA,length(league$stats[which(league$stats["pos"]=="k"),1]),nsim))
+   
+  sims_rb <- cbind(league$stats[which(league$stats["pos"]=="rb"),1],matrix(NA,length(league$stats[which(league$stats["pos"]=="rb"),1]),nsim))
+      
+  sims_wr <- cbind(league$stats[which(league$stats["pos"]=="wr"),1],matrix(NA,length(league$stats[which(league$stats["pos"]=="wr"),1]),nsim))
+         
+  sims_te <- cbind(league$stats[which(league$stats["pos"]=="te"),1],matrix(NA,length(league$stats[which(league$stats["pos"]=="te"),1]),nsim))
+  
+  if (is.na(seed)==FALSE) set.seed(seed)
+  
+  for(j in seq(nsim)){
+  for(i in seq(nrow(league$stats[which(league$stats["pos"]=="qb"),]))){
+  
+  newstats_qb[i,projected_cols] <- newstats_qb[i,projected_cols] - residuals$qb[sample(c(1:nrow(residuals$qb)),1),projected_cols]
+
+  }
+   
+   for(i in seq(nrow(league$stats[which(league$stats["pos"]=="k"),]))){
+  
+  newstats_k[i,projected_cols] <- newstats_k[i,projected_cols] - residuals$k[sample(c(1:nrow(residuals$k)),1),projected_cols]
+
+  }
+    
+   for(i in seq(nrow(league$stats[which(league$stats["pos"]=="rb"),]))){
+  
+  newstats_rb[i,projected_cols] <- newstats_rb[i,projected_cols] - residuals$rb[sample(c(1:nrow(residuals$rb)),1),projected_cols]
+
+   }
+
+     for(i in seq(nrow(league$stats[which(league$stats["pos"]=="wr"),]))){
+  
+  newstats_wr[i,projected_cols] <- newstats_wr[i,projected_cols] - residuals$wr[sample(c(1:nrow(residuals$wr)),1),projected_cols]
+
+   }      
+ 
+    
+    for(i in seq(nrow(league$stats[which(league$stats["pos"]=="te"),]))){
+  
+  newstats_te[i,projected_cols] <- newstats_te[i,projected_cols] - residuals$te[sample(c(1:nrow(residuals$te)),1),projected_cols]
+
+    }  
+    
+  leaguenew_qb <- league
+  leaguenew_qb$stats <- newstats_qb
+  sims_qb[,j+1] <- as.numeric(buildValues(leaguenew_qb)$value)
+  
+   leaguenew_k <- league
+  leaguenew_k$stats <- newstats_k
+  sims_k[,j+1] <- buildValues(leaguenew_k)$value
+  
+   leaguenew_rb <- league
+  leaguenew_rb$stats <- newstats_rb
+  sims_rb[,j+1] <- buildValues(leaguenew_rb)$value
+  
+   leaguenew_te <- league
+  leaguenew_te$stats <- newstats_te
+  sims_te[,j+1] <- buildValues(leaguenew_te)$value
+  
+   leaguenew_wr <- league
+  leaguenew_wr$stats <- newstats_wr
+  sims_wr[,j+1] <- buildValues(leaguenew_wr)$value
+  
+  
+  }
+
+  
+  sims_qb <- as.data.frame(sims_qb)
+  colnames(sims_qb) <- c("PlayerName",c(1:nsim))
+  sims_k <- as.data.frame(sims_k)
+  colnames(sims_k) <- c("PlayerName",c(1:nsim))
+  sims_rb <- as.data.frame(sims_rb)
+  colnames(sims_rb) <- c("PlayerName",c(1:nsim))
+  sims_wr <- as.data.frame(sims_wr)
+  colnames(sims_wr) <- c("PlayerName",c(1:nsim))
+  sims_te <- as.data.frame(sims_te)
+  colnames(sims_te) <- c("PlayerName",c(1:nsim))
+
+  sims <- list(sims_k,sims_qb,sims_rb,sims_wr,sims_te)
+  names(sims) <- c("k","qb","rb","wr","te")
+  
+  class(sims) <- "league"
+  
+  return(sims)
+
+}
+
+
+addNoise_test <- addNoise(league=l,residuals=fantasyresidual_allpositions,nsim=3,seed=144)
+  
+
+
+
+
+
+
+
+##quantile function
+
+quantile.league <- function(leaque_sim,probs=c(.25,.5,.75)){
+  
+  quantiles_k <- matrix(NA,nrow(leaque_sim$k),length(probs))
+  quantiles_qb <- matrix(NA,nrow(leaque_sim$qb),length(probs))
+  quantiles_rb <- matrix(NA,nrow(leaque_sim$rb),length(probs))
+  quantiles_wr <- matrix(NA,nrow(leaque_sim$wr),length(probs))
+  quantiles_te <- matrix(NA,nrow(leaque_sim$te),length(probs))
+  
+  
+  for(i in seq(nrow(leaque_sim$k))){
+    quantiles_k[i,] <- quantile(as.numeric(leaque_sim$k[i,2:ncol(leaque_sim$k)]),probs=probs)
+  }
+  
+  for(i in seq(nrow(leaque_sim$qb))){
+    quantiles_qb[i,] <- quantile(as.numeric(leaque_sim$qb[i,2:ncol(leaque_sim$qb)]),probs=probs)
+    
+  }
+  
+  for(i in seq(nrow(leaque_sim$rb))){
+    quantiles_rb[i,] <- quantile(as.numeric(leaque_sim$rb[i,2:ncol(leaque_sim$rb)]),probs=probs)
+    
+  }
+  
+  for(i in seq(nrow(leaque_sim$wr))){
+    quantiles_wr[i,] <- quantile(as.numeric(leaque_sim$wr[i,2:ncol(leaque_sim$wr)]),probs=probs)
+    
+  }
+  
+  for(i in seq(nrow(leaque_sim$te))){
+    quantiles_te[i,] <- quantile(as.numeric(leaque_sim$te[i,2:ncol(leaque_sim$te)]),probs=probs)
+    
+  }
+  
+  quantiles <- list(quantiles_k,quantiles_qb,quantiles_rb,quantiles_wr,quantiles_te)
+  
+  names(quantiles) <- c("k","qb","rb","wr","te")
+  
+  return(quantiles)
+}
+
+
+quantile_test <- quantile(addNoise_test)
+
+
+
+## conf interval function
+
+conf.interval <- function(leaque_sim,probs=c(.25,.5,.75),posReq){
+  
+  leaque_quantiles<-quantile.league(leaque_sim,probs)
+  
+  
+ 
+  leaque_quantiles$k <- leaque_quantiles$k[1:posReq$k,]
+  if (is.null(dim(leaque_quantiles$k))==FALSE) leaque_quantiles$k <- leaque_quantiles$k[order(-leaque_quantiles$k[,1]),] 
+  
+  leaque_quantiles$qb <- leaque_quantiles$qb[1:posReq$qb,]
+  if (is.null(dim(leaque_quantiles$qb))==FALSE)   leaque_quantiles$qb <- leaque_quantiles$qb[order(-leaque_quantiles$qb[,1]),]
+  
+  leaque_quantiles$rb <- leaque_quantiles$rb[1:posReq$rb,]
+  if (is.null(dim(leaque_quantiles$rb))==FALSE)   leaque_quantiles$rb <- leaque_quantiles$rb[order(-leaque_quantiles$rb[,1]),]
+  
+  leaque_quantiles$wr <- leaque_quantiles$wr[1:posReq$wr,]
+  if (is.null(dim(leaque_quantiles$wr))==FALSE)    leaque_quantiles$wr <- leaque_quantiles$wr[order(-leaque_quantiles$wr[,1]),]
+
+  
+  leaque_quantiles$te <- leaque_quantiles$te[1:posReq$te,]
+  if (is.null(dim(leaque_quantiles$te))==FALSE)    leaque_quantiles$te <- leaque_quantiles$te[order(-leaque_quantiles$te[,1]),]
+  
+  
+  x <- list(leaque_quantiles$k,leaque_quantiles$qb,leaque_quantiles$rb,leaque_quantiles$wr,leaque_quantiles$te) 
+  names(x) <- c("k","qb","rb","wr","te")
+  
+  class(x) <- "league.conf.interval"
+  return(x)
+}
+
+
+
+confinterval_test <- conf.interval(addNoise_test,posReq=pos)
+
+
+
+
+
+##plot function
+
+plot.league.conf.interval <- function(league.conf.interval,position){
+  
+  if (position=="k") x <- league.conf.interval[1]
+  if (position=="qb") x <- league.conf.interval[2]
+  if (position=="rb") x <- league.conf.interval[3]
+  if (position=="wr") x <- league.conf.interval[4]
+  if (position=="te") x <- league.conf.interval[5]
+  
+  x <- as.data.frame(x)
+
+  if(ncol(x)==1){
+    plot(x[1,],col="white",ylim=c(min(x),max(x)),xlab="Rank",ylab="Dollar Value")
+    for(i in seq(nrow(x))){
+      points(x[i,])
+    }
+  } 
+  
+  if (ncol(x)>1){
+  plot(x[,1],ylim=c(min(x),max(x)),col="white",xlab="Rank",ylab="Dollar Value")
+  for(i in seq(ncol(x))){
+    lines(x[,i],lty=i)
+  }
+    legend("topright",c(paste("probs",c(1:ncol(x)))),lty=c(1:ncol(x)))
+
+  }
+ 
+}
+
+
+plot_test <- plot(confinterval_test,position="wr")
+
+
+
+
+
+##testing
+pos_test <- list(qb=5, rb=6, wr=12, te=6, k=5)
+
+l1 <- addNoise(l,fantasyresidual_allpositions,5)
+quantile_l1 <- quantile(l1)
+ci <- conf.interval(l1,posReq=pos_test)
+plot(ci, 'qb')
+plot(ci, 'rb')
+plot(ci, 'wr')
+plot(ci, 'te')
+plot(ci, 'k')
+
+
+
+
+
+
+
+
+
+
+```
+
+# Comments
+
+* Line 83, should be `top_players <- top_players[order(-top_players[,"fpts"]),]`
+* Task 1.5, merge should keep all 160 `top_players`; -4
+    * merge command needs `all.x=TRUE`, otherwise you lose three players
+* Task 2.3, rather than reproduce work in calcPoints, have buildValues call calcPoints
+* Task 2.3, produces incorrect results; -5
+    * utilize league attributes `nTeams`, `cap`, `posReq`
+    * `marg` is created incorrectly assuming nTeams=12
+    * `value` is created incorrectly assuming total money available is `12 * 200`
+* Task 2.4, print functions should call `print`, not return data; -2
+    * Try `print.data.frame(x)`
+* Task 2.5, produces incorrect results; -2
+    * `buildValues` produces a data.frame and retrieve two columns, however `cbind` has a side-effect that coerces `value` into a character variable; `as.data.frame` then turns these into factor variables
+    * use this instead: `x <- buildValues(league)[,c(,'PlayerName','value')]`
+* Task 2.6, note that it is inefficient to call `buildValues` four times; call it once and assign it
+* Task 2, league object doesn't fail gracefully; -5
+    * code should fail on things like not enough players
+    * `calcPoints` should be able to handle any point requirements defined through `points`; don't hard-code this total
+* Task 3.1, produces incorrect results; -6
+    * each simulation iteration should call `buildValues` once, not once for each position
+    * data.frame for each position holds factor variables instead of numeric
+* Task 3.3, output should be ordered by last column instead of first; -4
+    * instead of `posReq` argument, position requirements should come from league object
+
+# Grade
+
+172/200
